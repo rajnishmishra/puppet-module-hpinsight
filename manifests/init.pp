@@ -44,19 +44,15 @@ class hpinsight(
 # Validation of input
 ## Removed ensure variable
   ##validate_re($ensure, '^(present|absent)$', "hpinsight::ensure may be either 'present' or 'absent' but is set to <${ensure}>")
-
   validate_bool($snmp_manage)
   
   
 # Package Installation
-	package {[$hpi_packages, $snmp_package, $hp_snmp_package]:
-				ensure	=> 'present'
-		}
-
+  package {[$hpi_packages, $snmp_package, $hp_snmp_package]:
+    ensure  => present }
 
 
 # Service Configuration and Setup
-	
 ## HP Insight - Service Configuration
 
 
@@ -93,9 +89,9 @@ class hpinsight(
       notify  => Service[$snmp_service],
     }
 
-    service { $snmp_service:
-      ensure  => running,
-      enable  => true,
+    service {$snmp_service:
+      ensure => running,
+      enable => true,
     }
   }
 }
