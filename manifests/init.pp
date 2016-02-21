@@ -3,7 +3,6 @@
 # Manage HP Insight
 #
 class hpinsight(
-  $ensure                  = 'present',
   $snmp_manage             = false,
   $snmp_rocommunity        = undef,
   $snmp_rocommunity_allow  = undef,
@@ -18,6 +17,7 @@ class hpinsight(
     'RedHat', 'Suse': {
       $hpi_packages = 'hp-health'
       $snmp_package = 'net-snmp'
+      $hp_snmp_package = 'hp-snmp-agents'
       $snmp_service = 'snmpd'
       $snmp_config  = '/etc/snmp/snmpd.conf'
       case $::architecture {
@@ -42,30 +42,37 @@ class hpinsight(
   }
 
 # Validation of input
-
-  validate_re($ensure, '^(present|absent)$', "hpinsight::ensure may be either 'present' or 'absent' but is set to <${ensure}>")
+## Removed ensure variable
+  ##validate_re($ensure, '^(present|absent)$', "hpinsight::ensure may be either 'present' or 'absent' but is set to <${ensure}>")
 
   validate_bool($snmp_manage)
+  
+  
+# Package Installation
+	package {[$hpi_packages, $snmp_package, $hp_snmp_package]:
+				ensure	=> 'present'
+		}
 
-# HP Insight
 
-  package { $hpi_packages:
-    ensure  => $ensure,
-  }
+
+# Service Configuration and Setup
+	
+## HP Insight - Service Configuration
+
 
   service { 'hp-snmp-agents':
-    ensure  => $ensure,
+    ensure  => running,
     status  => 'pgrep cmahealthd',
     require => Package[$hpi_packages],
   }
 
   service { 'hp-health':
-    ensure  => $ensure,
+    ensure  => running,
     status  => 'hpasmxld || pgrep hpasmlited',
     require => Package[$hpi_packages],
   }
 
-# Configure snmp
+# SNMP  - Service configuration
 
   if $snmp_manage == true {
     validate_string($snmp_dlmod)
@@ -75,16 +82,13 @@ class hpinsight(
     validate_string($snmp_trapsink_host)
     validate_string($snmp_trapsink_community)
 
-    package { $snmp_package:
-      ensure  => present,
-    }
 
     file { $snmp_config:
       ensure  => file,
       owner   => 'root',
       group   => 'root',
       mode    => '0600',
-      content => template("hpinsight/snmp.conf.erb"),
+      content => template('hpinsight/snmpd.conf.erb'),
       require => Package[$snmp_package],
       notify  => Service[$snmp_service],
     }
