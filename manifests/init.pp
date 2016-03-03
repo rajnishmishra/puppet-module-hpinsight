@@ -15,11 +15,11 @@ class hpinsight(
 
   case $::osfamily {
     'RedHat', 'Suse': {
-      $hpi_packages = 'hp-health'
-      $snmp_package = 'net-snmp'
+      $hpi_packages    = 'hp-health'
+      $snmp_package    = 'net-snmp'
       $hp_snmp_package = 'hp-snmp-agents'
-      $snmp_service = 'snmpd'
-      $snmp_config  = '/etc/snmp/snmpd.conf'
+      $snmp_service    = 'snmpd'
+      $snmp_config     = '/etc/snmp/snmpd.conf'
       case $::architecture {
         'x86_64': {
           $snmp_dlmod = '/usr/lib64/libcmaX64.so'
@@ -28,6 +28,7 @@ class hpinsight(
           $snmp_dlmod = '/usr/lib/libcmaX.so'
         }
       }
+
     }
     'Debian': {
       $hpi_packages = 'hp-health'
@@ -37,36 +38,53 @@ class hpinsight(
       $snmp_dlmod   = '/usr/lib64/libcmaX64.so'
     }
     default: {
-      fail("autofs supports osfamilies RedHat, Suse and Debian. Detected osfamily is <${::osfamily}>.")
+      fail("supports osfamilies RedHat, Suse and Debian. Detected osfamily <${::osfamily}>.")
     }
   }
 
-# Validation of input
-## Removed ensure variable
-  ##validate_re($ensure, '^(present|absent)$', "hpinsight::ensure may be either 'present' or 'absent' but is set to <${ensure}>")
+# Validation of input, to check only bool supplied
   validate_bool($snmp_manage)
   
   
 # Package Installation
-  package {[$hpi_packages, $snmp_package, $hp_snmp_package]:
-    ensure  => present }
+# For Virtual - No HP packages
+  if $::manufacturer == 'HP' and $::virtual == 'physical' {
+    package {[$hpi_packages, $hp_snmp_package]:
+      ensure  => present }
 
+      # HP Storage - raid management tools, need to check HW model also
+      # hpssacli HP SSA is now standard, please check for requirement of hpacucli
+      # http://h20564.www2.hpe.com/hpsc/swd/public/detail?swItemId=MTX_b6a6acb9762443b182280db805#tab1
+    if $::operatingsystemmajrelease < 6 {
+      package { 'hpacucli':
+      ensure => 'present',
+     }
+    } else {
+      package {'hpssacli':
+      ensure => 'present',
+    }
+    }
+    # Service Configuration and Setup
+    # HP Insight - Service Configuration
 
-# Service Configuration and Setup
-## HP Insight - Service Configuration
+    service { 'hp-snmp-agents':
+      ensure  => running,
+      status  => 'pgrep cmahealthd',
+      require => Package[$hpi_packages],
+    }
 
-
-  service { 'hp-snmp-agents':
-    ensure  => running,
-    status  => 'pgrep cmahealthd',
-    require => Package[$hpi_packages],
+    service { 'hp-health':
+      ensure  => running,
+      status  => 'hpasmxld || pgrep hpasmlited',
+      require => Package[$hpi_packages],
+    }
   }
 
-  service { 'hp-health':
-    ensure  => running,
-    status  => 'hpasmxld || pgrep hpasmlited',
-    require => Package[$hpi_packages],
+# SNMP for all- physical or virtual
+  package { $snmp_package:
+    ensure => present,
   }
+
 
 # SNMP  - Service configuration
 
@@ -84,6 +102,7 @@ class hpinsight(
       owner   => 'root',
       group   => 'root',
       mode    => '0600',
+      backup  => true,
       content => template('hpinsight/snmpd.conf.erb'),
       require => Package[$snmp_package],
       notify  => Service[$snmp_service],
