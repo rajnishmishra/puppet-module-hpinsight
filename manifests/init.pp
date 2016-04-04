@@ -55,7 +55,8 @@ class hpinsight(
       # HP Storage - raid management tools, need to check HW model also
       # hpssacli HP SSA is now standard, please check for requirement of hpacucli
       # http://h20564.www2.hpe.com/hpsc/swd/public/detail?swItemId=MTX_b6a6acb9762443b182280db805#tab1
-    if $::operatingsystemmajrelease < 6 {
+      # Site specific requirement for hpacucli
+    if $::operatingsystemmajrelease < 7 {
       package { 'hpacucli':
       ensure => 'present',
      }
